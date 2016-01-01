@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
+		<meta name="description" content="This is just my personal rat hi.">
+		<title>My Personal Rat</title>
+		<style>
+		body, html {
+			padding: 0;
+			margin: 0;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+			background: black;
+		}
+		.magnification {
+			z-index: 9000;
+			width: 131.25px;
+			height: 131.25px;
+			position: absolute;
+			border-radius: 100%;
+			background-repeat: no-repeat;
+			background-color: black;
+			box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.85), 0 0 7px 7px rgba(0, 0, 0, 0.25), inset 0 0 40px 2px rgba(0, 0, 0, 0.25);
+			display: none;
+			zoom: 1.5;
+		}
+		.cursor {
+			width: 7px;
+			height: 7px;
+			margin-left: -3px;
+			margin-top: -3px;
+			background: red;
+			position: absolute;
+			left: 50%;
+			top: 50%;
+		}
+		.cursorLineHorizontal, .cursorLineVertical {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			background: green;
+		}
+		.cursorLineHorizontal {
+			margin-left: -50%;
+			margin-top: -0.5px;
+			width: 100%;
+			height: 1px;
+		}
+		.cursorLineVertical {
+			margin-top: -50%;
+			margin-left: -0.5px;
+			height: 100%;
+			width: 1px;
+		}
+		.sideMenu {
+			width: 100px;
+			height: 90%;
+			background: #e6e6e6;
+			outline: 1px solid #b6b6b6;
+			position: absolute;
+			right: 0;
+			top: 5%;
+			box-shadow: 3px 4px 10px 1px black;
+		}
+		.mouseOption, .keyboard {
+			height: 37.5%;
+			background: white;
+			display: block;
+			width: 100%;
+		}
+		.leftClickHover, .rightClickHover {
+			background: #b6b6b6 !important;
+		}
+		.keyboardHover {
+			background: rgb(14, 0, 70) !important;
+		}
+		.keyboard {
+			height: 25%;
+			background: blue;
+			color: white;
+		}
+		.pixel {
+			background: teal;
+			width: 1px;
+			height: 1px;
+			position: absolute;
+		}
+		#tempType {
+			background: rgba(255, 255, 255, 0.8);
+			border: none;
+			outline: 3px solid black;
+			position: absolute;
+			top: 0;
+			left: 0;
+			display: none;
+			width: 100%;
+			height: 90px;
+			font-size: 18px;
+			overflow: hidden;
+		}
+	</style>
+	</head>
+	<body>
+		<img id="screenshot" src="./screenshot.jpg" height="100%" />
+		<div class="magnification"><div class="cursorLineHorizontal"></div><div class="cursorLineVertical"></div><div class="cursor"></div></div>
+		<div class="pixel"></div>
+		<div class="sideMenu">
+			<button id="leftClick" class="mouseOption">Left Click</button>
+			<button id="rightClick" class="mouseOption">Right Click</button>
+			<button id="keyboard" class="keyboard">Keyboard</button>
+		</div>
+		<textarea id="tempType"></textarea>
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+		<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.5/socket.io.min.js"></script>
+		<script src="./portHost.js"></script>
+		<script>
+			var mpr = {
+				//config
+				host: {
+					url: "http://" + host,
+					port: port
+				},
+				//functional vars
+				lastMouse: {x: 0, y: 0},
+				dragging: {},
+				//mini functions
+				t: function() {return (new Date() / 1);},
+				updateScreenshot: function() {
+					var src = './screenshot.jpg?t=' + mpr.t();
+					screenshot.attr('src', src);
+					magnification.css('background-image', "url(" + src + ")");
+				},
+				convertPixels: function(px) {
+					var realHeight = screenshot[0].naturalHeight
+					var magnification = screenshot.height() / realHeight;
+					px.x = px.x / magnification;
+					px.y = px.y / magnification;
+					return px;
+				},
+				magnificationReposition: function() {
+					var cursorPoint = {
+						x: mpr.dragging.touch.pageX,
+						y: mpr.dragging.touch.pageY
+					};
+					cursorPoint = mpr.convertPixels(cursorPoint);
+					var magnificationZoom = Number(magnification.css('zoom'));
+					var half = {
+						x: magnification.width() / 2,
+						y: magnification.height() / 2
+					};
+					var startCrop = {
+						x: cursorPoint.x - half.x,
+						y: cursorPoint.y - half.y
+					};
+					magnification.css({
+						left: ((mpr.dragging.touch.pageX - half.x * magnificationZoom) / magnificationZoom) + 'px',
+						top: ((mpr.dragging.touch.pageY - half.y * magnificationZoom) / magnificationZoom) + 'px',
+						'background-position': -startCrop.x + 'px ' + -startCrop.y + 'px'
+					});
+				},
+				//main functions
+				socketEvents: {
+					socketReady: function(data) {
+					
+					},
+					update: function() {
+						mpr.updateScreenshot();
+					},
+				},
+				initializeSocket: function() {
+					var socket = io(mpr.host.url + ":" + mpr.host.port);
+					socket.on('connect', function() {
+						mpr.socketEvents.socketReady();
+						console.log('I AM CONNECTED!');
+					});
+					socket.on('e', function(data) {
+						if (mpr.socketEvents[data.event]) mpr.socketEvents[data.event](data);
+						console.log(data);
+					});
+					this.socket = socket;
+				},
+				initialize: function() {
+					window.screenshot = $("#screenshot");
+					window.magnification = $(".magnification");
+					$("body").append($('<div />').css({position: 'absolute', top: '0', left: '0', width: '100%', height: '100%'})); //overlay so that the screenshot isnt dragged
+					this.initializeSocket();
+					mpr.updateScreenshot();
+					mpr.domEvents();
+					mpr.resize();
+				},
+				resize: function() {
+					var body = $("body");
+					var bodyWidth = body.width();
+					var bodyHeight = body.height();
+					var screenshotWidth = screenshot.width();
+					var screenshotHeight = screenshot.height();
+					$(".sideMenu").width(bodyWidth - screenshotWidth);
+					
+					//recalibrate gui
+					window.constraints = {};
+					var uiEls = ["#screenshot", "#leftClick", "#rightClick", "#keyboard"];
+					for (var i in uiEls) {
+						var elSelector = uiEls[i];
+						var el = $(elSelector);
+						var offset = el.offset();
+						constraints[elSelector] = {
+							width: el.width(),
+							height: el.height(),
+							top: offset.top,
+							left: offset.left
+						};
+					}
+				},
+				emit: function(event, data) {
+					var obj = {};
+					if (typeof data === 'object') {
+						obj = data;
+					} else {
+						obj.data = data;
+					}
+					obj.event = event;
+					mpr.socket.emit('e', obj);
+					console.log(event + JSON.stringify(data));
+				},
+				virtualEvent: function(selector, event) {
+					if (event === "mouseup") {
+						switch(selector) {
+							case '#leftClick':
+								//treat this as a whole click
+								mpr.trigger('leftClick', false);
+								break;
+							case '#rightClick':
+								//treat this as a whole click
+								mpr.trigger('rightClick', false);
+								break;
+							case '#keyboard':
+								//open keyboard, treat this as a click
+								if (!$('#tempType').is(':visible')) {
+									$('#tempType').show().val("").focus();
+								} else $('#tempType').blur().hide();
+								break;
+						}
+					}
+				},
+				trigger: function(type, coordinates) {
+					var send;
+					if (coordinates === false) {} else if (coordinates === undefined) {
+						send = mpr.convertPixels({x: mpr.lastMouse.x, y: mpr.lastMouse.y});
+					} else {
+						send = mpr.convertPixels({x: coordinates.x, y: coordinates.y});
+					}
+					mpr.emit(type, send);
+				},
+				domEvents: function() {
+					$(window).on('resize', mpr.resize);
+					$(document).on("mousedown touchstart", function(touch) {
+						var e = touch;
+						var touches = touch.originalEvent.touches;
+						var fingers = 1;
+						if (touches) {
+							touch = touches[0];
+							fingers = touches.length;
+						}
+						mpr.dragging.touch = touch;
+						var movemouse = true;
+						if (fingers === 1) {
+							if (touch.pageX > constraints["#screenshot"].width || touch.pageY > constraints["#screenshot"].width) {
+								//touch was started outside of screenshot
+								movemouse = false;
+							}
+						} else movemouse = false;
+						if (movemouse) mpr.dragging.movemouse = true;
+						if (!movemouse) {
+							for (var selector in constraints) {
+								var current = constraints[selector];
+								if (touch.pageY > current.top && touch.pageX > current.left) {
+									if (touch.pageY < current.top + current.height && touch.pageX < current.left + current.width) {
+										mpr.dragging.elementMousing = selector;
+										$(selector).addClass(selector.substr(1) + "Hover");
+										mpr.virtualEvent(selector, "mousedown");
+										break;
+									}
+								}
+							}
+						}
+						$(".magnification").show();
+						$(".pixel").hide();
+						mpr.magnificationReposition();
+						e.preventDefault();
+					}).on("mousemove touchmove", function(touch) {
+						var e = touch;
+						var touches = touch.originalEvent.touches;
+						var fingers = 1;
+						if (touches) {
+							touch = touches[0];
+							fingers = touches.length;
+						}
+						if (fingers === 1) mpr.dragging.touch = touch;
+						e.preventDefault();
+						mpr.magnificationReposition();
+					}).on("mouseup touchend touchcancel", function(touch) {
+						//ending touch = mpr.dragging
+						var e = touch;
+						var touches = touch.originalEvent.touches;
+						var fingers = 0;
+						if (touches) {
+							touch = touches[0];
+							fingers = touches.length;
+						}
+						if (mpr.dragging.touch) {
+							if (fingers === 0) {
+								if (mpr.dragging.touch.pageX === mpr.lastMouse.x && mpr.dragging.touch.pageY === mpr.lastMouse.y) {} else {
+									if (mpr.dragging.movemouse) {
+										mpr.lastMouse.x = mpr.dragging.touch.pageX;
+										mpr.lastMouse.y = mpr.dragging.touch.pageY;
+										$('.pixel').css({
+											left: mpr.dragging.touch.pageX + "px",
+											top: mpr.dragging.touch.pageY + "px"
+										}).show();
+										mpr.trigger('mousemove');
+									}
+								}
+								if (mpr.dragging.elementMousing) {
+									var selector = mpr.dragging.elementMousing;
+									var el = $(selector);
+									var isStillMousing = constraints[selector];
+									var lastMousePosition = touch;
+									if (!touch) {
+										lastMousePosition = mpr.dragging.touch;
+									}
+									if (lastMousePosition.pageY > isStillMousing.top && lastMousePosition.pageX > isStillMousing.left) {
+										if (lastMousePosition.pageY < isStillMousing.top + isStillMousing.height && lastMousePosition.pageX < isStillMousing.left + isStillMousing.width) {
+											mpr.virtualEvent(selector, "mouseup");
+										}
+										delete mpr.dragging.elementMousing;
+									}
+									el.removeClass(selector.substr(1) + "Hover");
+								}
+							}
+							mpr.dragging = {};
+						}
+						$(".magnification").hide();
+					});
+					$("#tempType").blur(function() {
+						$(this).hide();
+					}).keydown(function(e) {
+						var relevantKeys = {8: "BackSpace", 9: "Tab", 16: "Shift_L", 27: "Escape", 33: "Page_Up", 34: "Page_Down", 37: "Left", 38: "Up", 39: "Right", 40: "Down", 46: "Delete"};
+						var cropped = this.value.split('\n');
+						var addLine = true;
+						var val = relevantKeys[e.keyCode];
+						if (!val) return;
+						if (e.keyCode === 8) {
+							//backspace
+							addLine = false; //remove a line because it's a back space...
+							for (var i = cropped.length - 1; i > -1; i--) {
+								var c = cropped[i];
+								if (c.length === 1 || c === "SPACE") {
+									cropped.splice(i, 1);
+									break;
+								}
+								if (i === 0) {
+									//nothing to erase
+									addLine = true;
+								}
+							}
+						}
+						if (cropped.length === 4) cropped.splice(0, 1);
+						cropped = cropped.join('\n');
+						if (addLine) {
+							this.value = cropped + "[" + val + "]\n";
+						} else this.value = cropped;
+						e.preventDefault();
+
+						mpr.emit('key', {keys: [val]});
+					}).keypress(function(e) {
+						var key = String.fromCharCode(e.keyCode);
+						if (key) {}
+						var val = key;
+						if (val === " ") val = "SPACE";
+						var cropped = this.value.split('\n');
+						if (cropped.length === 4) cropped.splice(0, 1);
+						cropped = cropped.join('\n');
+						if (e.keyCode === 13) {
+							key = "Return";
+							val = "[Enter]";
+						}
+						this.value = cropped + val + "\n";
+						e.preventDefault();
+						mpr.emit('key', {keys: [key]});
+					});
+				},
+			};
+			$(function() {mpr.initialize();})
+		</script>
+	</body>
+</html>
