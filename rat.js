@@ -96,7 +96,7 @@ var app = {
 	users: {},
 	userCount: 0,
 	newScreenshot: function() {
-		var cmd = "import -window root -resize " + pictureResolution.x + "x" + pictureResolution.y + " " + __dirname + "screenshot.jpg";
+		var cmd = "import -window root -resize " + pictureResolution.x + "x" + pictureResolution.y + " " + __dirname + "/screenshot.jpg";
 		if (isWindows) cmd = "screeny -encoder jpeg -filename screenshot.jpg -quality 100 -resize " + Math.floor(pictureResolution.y / resolution.y * 100);
 		exec(cmd, function() {
 			for (var i in app.users) app.users[i].emit('update');
